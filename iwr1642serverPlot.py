@@ -11,31 +11,7 @@ from func_plot import update_plot, process_plot_queue
 
 clients = []
 command_queue = Queue()
-
-# 큐를 생성하여 전역적으로 접근할 수 있도록 설정
 plot_queue = Queue()
-
-currChDataI = np.array([])
-currChDataQ = np.array([])
-rangeArray = np.array([])
-dopplerArray = np.array([])
-rangeDoppler = np.array([])
-
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6))
-
-line1, = ax1.plot([], [], label='I Channel')
-line2, = ax1.plot([], [], label='Q Channel')
-ax1.set_xlabel('time (samples)')
-ax1.set_ylabel('ADC time domain output')
-ax1.set_title('Time Domain Output')
-ax1.legend()
-ax1.grid(True)
-
-ax2.set_xlabel('Doppler(m/s)')
-ax2.set_ylabel('Range(meters)')
-ax2.set_title('Range Doppler Output')
-ax2.legend()
-ax2.grid(True)
 
 
 def json_to_numpy(data):
@@ -66,7 +42,6 @@ def handle_client(client_socket):
                 
                 # JSON 데이터를 numpy 배열로 변환
                 received_data = json_to_numpy(received_data)
-
                 frameNumber = received_data['frameNumber']
                 currChDataI = received_data['currChDataI']
                 currChDataQ = received_data['currChDataQ']
@@ -74,6 +49,9 @@ def handle_client(client_socket):
                 dopplerArray = received_data['dopplerArray']
                 rangeDoppler = received_data['rangeDoppler']
 
+                rangeArray = np.array(rangeArray, dtype=np.int16)
+                dopplerArray = np.array(dopplerArray, dtype=np.int16)
+                rangeDoppler = np.array(rangeDoppler, dtype=np.int16)
 
                 print('수신된 데이터:')
                 print('frameNumber:', frameNumber)
@@ -82,6 +60,10 @@ def handle_client(client_socket):
                 print('rangeArray:', rangeArray)
                 print('dopplerArray:', dopplerArray)
                 print('rangeDoppler:', rangeDoppler)
+
+                print("\nshape:", rangeDoppler.shape)
+                print("\nsize:", rangeDoppler.size)
+                print("\ndtype:", rangeDoppler.dtype)
 
                 update_plot(currChDataI, currChDataQ, rangeArray,dopplerArray,rangeDoppler)
                 # 처리 후 partial_data 초기화
