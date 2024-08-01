@@ -7,12 +7,37 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-from func_plot import update_plot, process_plot_queue
-
 clients = []
 command_queue = Queue()
 plot_queue = Queue()
 
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6))
+
+line1, = ax1.plot([], [], label='I Channel')
+line2, = ax1.plot([], [], label='Q Channel')
+ax1.set_xlabel('time (samples)')
+ax1.set_ylabel('ADC time domain output')
+ax1.set_title('Time Domain Output')
+ax1.legend()
+ax1.grid(True)
+
+ax2.set_xlabel('Doppler(m/s)')
+ax2.set_ylabel('Range(meters)')
+ax2.set_title('Range Doppler Output')
+ax2.grid(True)
+
+def update_rangeprofile_plot(I_data, Q_data):
+    line1.set_ydata(I_data)
+    line2.set_ydata(Q_data)
+    line1.set_xdata(np.arange(len(I_data)))
+    line2.set_xdata(np.arange(len(Q_data)))
+    ax1.relim()
+    ax1.autoscale_view()
+
+def update_rangedoppler_plot(rangeArray, dopplerArray, rangeDoppler):
+    ax2.cla()
+    ax2.contourf(rangeArray, dopplerArray, rangeDoppler, cmap='jet')
+    ax2.grid(True)
 
 def json_to_numpy(data):
     """ JSON 데이터를 numpy 배열로 변환 """
@@ -23,13 +48,12 @@ def json_to_numpy(data):
             except ValueError:
                 pass
     rangeDoppler = data['rangeDoppler']
-    print("\n rangedoppler: ", rangeDoppler) 
+    print("\n rangedoppler: ", rangeDoppler)
     print("\nshape:", rangeDoppler.shape)
     print("\nsize:", rangeDoppler.size)
     print("\ndtype:", rangeDoppler.dtype)
 
     return data
-
 
 def handle_client(client_socket):
     client_socket.send("hi im server".encode())  # Initial message to the client
@@ -57,8 +81,9 @@ def handle_client(client_socket):
 
                 print('수신된 데이터:')
                 print('frameNumber:', frameNumber)
+                
+                plot_queue.put((currChDataI, currChDataQ, rangeArray, dopplerArray, rangeDoppler))
 
-                update_plot(currChDataI, currChDataQ, rangeArray, dopplerArray, rangeDoppler)
                 # 처리 후 partial_data 초기화
                 partial_data = ""
 
@@ -69,6 +94,17 @@ def handle_client(client_socket):
             print(f"Error in handle_client: {e}")
             break
     client_socket.close()
+
+def plot_update_loop():
+    plt.ion()  # Interactive mode on
+    while True:
+        data = plot_queue.get()
+        if data:
+            currChDataI, currChDataQ, rangeArray, dopplerArray, rangeDoppler = data
+            update_rangeprofile_plot(currChDataI, currChDataQ)
+            update_rangedoppler_plot(rangeArray, dopplerArray, rangeDoppler)
+            plt.draw()
+            plt.pause(0.01)
 
 def server_loop(server_socket):
     while True:
@@ -126,13 +162,13 @@ def server():
     command_thread = threading.Thread(target=handle_commands)
     command_thread.start()
 
-    input_thread = threading.Thread(target=command_input_thread)
-    input_thread.start()
+    plot_thread = threading.Thread(target=plot_update_loop)
+    plot_thread.start()
 
     try:
         while True:
-            process_plot_queue() # 주기적으로 큐를 확인하고, 플롯을 업데이트함
-            time.sleep(0.000001)
+            command = input()
+            command_queue.put(command)
     except KeyboardInterrupt:
         shutdown_server(server_socket)
 
